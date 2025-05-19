@@ -2,64 +2,64 @@
 <html>
 <head>
   <title>受信側</title>
+  <style>
+    canvas {
+      border: 1px solid black;
+      display: block;
+    }
+  </style>
 </head>
 <body>
-<canvas id="viewCanvas" width="445" height="634" style="border:1px solid gray;"></canvas>
+
+<canvas id="drawCanvas" width="842" height="595"></canvas>
 
 <script>
-const canvas = document.getElementById("viewCanvas");
+const canvas = document.getElementById("drawCanvas");
 const ctx = canvas.getContext("2d");
+let drawing = false;
+let backgroundImage = null;
+let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 
-let prevX = null;
-let prevY = null;
-let isDrawing = false;
+function redrawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (backgroundImage) {
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+  }
+}
 
-const socket = new WebSocket("wss://realtime-sign-server.onrender.com");
+socket.onmessage = (event) => {
+  const data = JSON.parse(event.data);
 
-socket.onopen = () => {
-  console.log("✅ WebSocket接続完了");
-};
-
-socket.onmessage = async (event) => {
-  try {
-    let json;
-    if (typeof event.data === "string") {
-      json = JSON.parse(event.data);
-    } else if (event.data instanceof Blob) {
-      const text = await event.data.text();
-      json = JSON.parse(text);
+  if (data.type === "background") {
+    if (data.src === "white") {
+      backgroundImage = null;
+      redrawCanvas();
+    } else {
+      const img = new Image();
+      img.src = data.src;
+      img.onload = () => {
+        backgroundImage = img;
+        redrawCanvas();
+      };
     }
+    return;
+  }
 
-    const type = json.type;
-    const x = json.x;
-    const y = json.y;
+  if (data.type === "clear") {
+    redrawCanvas();
+    return;
+  }
 
-    if (type === "start") {
-      isDrawing = true;
-      prevX = x;
-      prevY = y;
-    } else if (type === "draw" && isDrawing) {
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "#000";
-      ctx.beginPath();
-      ctx.moveTo(prevX, prevY);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      prevX = x;
-      prevY = y;
-    } else if (type === "end") {
-      isDrawing = false;
-      prevX = null;
-      prevY = null;
-    } else if (type === "clear") {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      prevX = null;
-      prevY = null;
-      isDrawing = false;
-    }
+  if (data.type === "start") {
+    ctx.beginPath();
+    ctx.moveTo(data.x, data.y);
+  }
 
-  } catch (e) {
-    console.error("受信エラー:", e);
+  if (data.type === "draw") {
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#000";
+    ctx.lineTo(data.x, data.y);
+    ctx.stroke();
   }
 };
 </script>
