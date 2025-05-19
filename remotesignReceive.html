@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -33,12 +34,13 @@
 <body>
 
 <canvas id="drawCanvas" width="842" height="595"></canvas>
-<div class="version">1</div>
+<div class="version">2</div>
 
 <script>
 const canvas = document.getElementById("drawCanvas");
 const ctx = canvas.getContext("2d");
 let backgroundImage = null;
+let drawingData = []; // 描画データを保存する配列
 
 let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 socket.onopen = () => console.log("✅ WebSocket接続完了（受信側）");
@@ -46,11 +48,24 @@ socket.onerror = e => console.error("❌ WebSocketエラー", e);
 socket.onclose = () => console.warn("⚠️ WebSocket切断");
 
 // 再描画関数
-function redrawCanvas() {
+function redrawCanvas(withBackground = true) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (backgroundImage) {
+  if (withBackground && backgroundImage) {
     ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
   }
+  
+  // 保存された描画データを再描画
+  drawingData.forEach(cmd => {
+    if (cmd.type === "start") {
+      ctx.beginPath();
+      ctx.moveTo(cmd.x, cmd.y);
+    } else if (cmd.type === "draw") {
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#000";
+      ctx.lineTo(cmd.x, cmd.y);
+      ctx.stroke();
+    }
+  });
 }
 
 // WebSocketメッセージ処理
@@ -75,26 +90,35 @@ socket.onmessage = (event) => {
 
 // メッセージに応じた描画・処理
 function handleMessage(data) {
+  console.log("受信メッセージ:", data.type);
+  
   if (data.type === "print") {
+    console.log("印刷コマンド受信 - PDF保存を開始します");
     saveCanvasAsPDF();
   } else if (data.type === "background") {
     if (data.src === "white") {
       backgroundImage = null;
+      drawingData = []; // 描画データもクリア
       redrawCanvas();
     } else {
       const img = new Image();
+      img.crossOrigin = "Anonymous";
       img.src = data.src;
       img.onload = () => {
         backgroundImage = img;
+        drawingData = []; // 新しい背景設定時に描画データをクリア
         redrawCanvas();
       };
     }
   } else if (data.type === "clear") {
+    drawingData = []; // 描画データをクリア
     redrawCanvas();
   } else if (data.type === "start") {
+    drawingData.push({...data}); // 描画データを保存
     ctx.beginPath();
     ctx.moveTo(data.x, data.y);
   } else if (data.type === "draw") {
+    drawingData.push({...data}); // 描画データを保存
     ctx.lineWidth = 4;
     ctx.strokeStyle = "#000";
     ctx.lineTo(data.x, data.y);
@@ -103,27 +127,50 @@ function handleMessage(data) {
 }
 
 // 筆跡のみPDF保存
-async function saveCanvasAsPDF() {
-  const originalBg = backgroundImage;
-  backgroundImage = null;
-  redrawCanvas();
-
-  await new Promise(resolve => setTimeout(resolve, 100)); // 少し待って描画反映
-
-  html2canvas(canvas, { backgroundColor: null }).then(canvasImg => {
+function saveCanvasAsPDF() {
+  console.log("PDF保存処理を開始");
+  
+  // 一時的に背景を非表示にして筆跡だけ描画
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = canvas.width;
+  tmpCanvas.height = canvas.height;
+  const tmpCtx = tmpCanvas.getContext('2d');
+  
+  // 筆跡のみを描画
+  drawingData.forEach(cmd => {
+    if (cmd.type === "start") {
+      tmpCtx.beginPath();
+      tmpCtx.moveTo(cmd.x, cmd.y);
+    } else if (cmd.type === "draw") {
+      tmpCtx.lineWidth = 4;
+      tmpCtx.strokeStyle = "#000";
+      tmpCtx.lineTo(cmd.x, cmd.y);
+      tmpCtx.stroke();
+    }
+  });
+  
+  // PDFに変換して保存
+  try {
     const { jsPDF } = window.jspdf;
     const pdf = new jsPDF({
       orientation: 'landscape',
-      unit: 'px',
+      unit: 'pt',
       format: [canvas.width, canvas.height]
     });
-    pdf.addImage(canvasImg, 'PNG', 0, 0, canvas.width, canvas.height);
-    pdf.save('signature.pdf');
-
-    // 背景を戻して再描画
-    backgroundImage = originalBg;
-    redrawCanvas();
-  });
+    
+    // 透明な背景でPDFに追加
+    const imgData = tmpCanvas.toDataURL('image/png');
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+    
+    // ファイル名に日時を追加
+    const now = new Date();
+    const fileName = `signature_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}${now.getSeconds().toString().padStart(2,'0')}.pdf`;
+    
+    console.log("PDFを保存:", fileName);
+    pdf.save(fileName);
+  } catch (err) {
+    console.error("PDF生成エラー:", err);
+  }
 }
 </script>
 
