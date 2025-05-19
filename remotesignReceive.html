@@ -25,6 +25,10 @@
       color: #333;
     }
   </style>
+
+  <!-- 必要なライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
@@ -41,6 +45,7 @@ socket.onopen = () => console.log("✅ WebSocket接続完了（受信側）");
 socket.onerror = e => console.error("❌ WebSocketエラー", e);
 socket.onclose = () => console.warn("⚠️ WebSocket切断");
 
+// 再描画関数
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (backgroundImage) {
@@ -48,34 +53,34 @@ function redrawCanvas() {
   }
 }
 
+// WebSocketメッセージ処理
 socket.onmessage = (event) => {
-  if (event.data instanceof Blob) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const data = JSON.parse(reader.result);
-        handleMessage(data);
-      } catch (e) {
-        console.error("JSON parse error:", e);
-      }
-    };
-    reader.readAsText(event.data);
-  } else {
+  const handle = (raw) => {
     try {
-      const data = JSON.parse(event.data);
+      const data = JSON.parse(raw);
       handleMessage(data);
     } catch (e) {
       console.error("JSON parse error:", e);
     }
+  };
+
+  if (event.data instanceof Blob) {
+    const reader = new FileReader();
+    reader.onload = () => handle(reader.result);
+    reader.readAsText(event.data);
+  } else {
+    handle(event.data);
   }
 };
 
+// メッセージに応じた描画・処理
 function handleMessage(data) {
   if (data.type === "print") {
-    window.print();
+    saveCanvasAsPDF();
   } else if (data.type === "background") {
     if (data.src === "white") {
       backgroundImage = null;
+      redrawCanvas();
     } else {
       const img = new Image();
       img.src = data.src;
@@ -83,9 +88,7 @@ function handleMessage(data) {
         backgroundImage = img;
         redrawCanvas();
       };
-      return; // 画像読み込み後に再描画するため中断
     }
-    redrawCanvas();
   } else if (data.type === "clear") {
     redrawCanvas();
   } else if (data.type === "start") {
@@ -97,6 +100,30 @@ function handleMessage(data) {
     ctx.lineTo(data.x, data.y);
     ctx.stroke();
   }
+}
+
+// 筆跡のみPDF保存
+async function saveCanvasAsPDF() {
+  const originalBg = backgroundImage;
+  backgroundImage = null;
+  redrawCanvas();
+
+  await new Promise(resolve => setTimeout(resolve, 100)); // 少し待って描画反映
+
+  html2canvas(canvas, { backgroundColor: null }).then(canvasImg => {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'px',
+      format: [canvas.width, canvas.height]
+    });
+    pdf.addImage(canvasImg, 'PNG', 0, 0, canvas.width, canvas.height);
+    pdf.save('signature.pdf');
+
+    // 背景を戻して再描画
+    backgroundImage = originalBg;
+    redrawCanvas();
+  });
 }
 </script>
 
