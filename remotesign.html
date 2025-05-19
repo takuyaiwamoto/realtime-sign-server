@@ -28,22 +28,26 @@ let drawing = false;
 let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 let backgroundImage = null;
 
-// 背景設定
 function setBackground(src) {
   if (src === null) {
     backgroundImage = null;
     redrawCanvas();
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "background", src: "white" }));
+    }
   } else {
     const img = new Image();
     img.src = src;
     img.onload = () => {
       backgroundImage = img;
       redrawCanvas();
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "background", src: src }));
+      }
     };
   }
 }
 
-// 背景＋線の再描画（初期化時や背景変更時）
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (backgroundImage) {
@@ -51,7 +55,6 @@ function redrawCanvas() {
   }
 }
 
-// Clearボタン
 function clearCanvas() {
   redrawCanvas();
   if (socket.readyState === WebSocket.OPEN) {
@@ -59,10 +62,8 @@ function clearCanvas() {
   }
 }
 
-// 初期化：白背景
 setBackground(null);
 
-// 描画処理
 canvas.addEventListener("mousedown", (e) => {
   drawing = true;
   const x = e.offsetX;
