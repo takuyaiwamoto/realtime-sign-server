@@ -11,11 +11,6 @@
     button {
       margin-right: 5px;
     }
-    #countdown {
-      font-size: 24px;
-      color: red;
-      margin-top: 10px;
-    }
   </style>
 </head>
 <body>
@@ -25,10 +20,6 @@
 <button onclick="setBackground('./back2.png')">背景2</button>
 <button onclick="setBackground(null)">白</button>
 <button onclick="clearCanvas()">Clear</button>
-<button onclick="sendPrintCommand()">送信</button>
-
-<!-- ✅ カウントダウン表示領域 -->
-<div id="countdown"></div>
 
 <script>
 const canvas = document.getElementById("drawCanvas");
@@ -37,73 +28,58 @@ let drawing = false;
 let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 let backgroundImage = null;
 
-socket.onopen = () => console.log("✅ WebSocket接続完了（送信側）");
-
-// 背景を設定
 function setBackground(src) {
   if (src === null) {
     backgroundImage = null;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    socket.send(JSON.stringify({ type: "background", src: "white" }));
+    redrawCanvas();
+    if (socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "background", src: "white" }));
+    }
   } else {
     const img = new Image();
     img.src = src;
     img.onload = () => {
       backgroundImage = img;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
-      socket.send(JSON.stringify({ type: "background", src: src }));
+      redrawCanvas();
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "background", src: src }));
+      }
     };
   }
 }
 
-// 送信ボタンで印刷コマンド送信
-function sendPrintCommand() {
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: "print" }));
-    startCountdown();
-  }
-}
-
-// ✅ カウントダウン表示
-function startCountdown() {
-  const countdownEl = document.getElementById("countdown");
-  let seconds = 7;
-  countdownEl.textContent = `お渡しまで：${seconds}秒`;
-
-  const timer = setInterval(() => {
-    seconds--;
-    if (seconds >= 0) {
-      countdownEl.textContent = `お渡しまで：${seconds}秒`;
-    } else {
-      clearInterval(timer);
-      countdownEl.textContent = "";
-    }
-  }, 1000);
-}
-
-// Clearキャンバス
-function clearCanvas() {
+function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (backgroundImage) {
     ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
   }
-  socket.send(JSON.stringify({ type: "clear" }));
 }
 
-// 描画処理
+function clearCanvas() {
+  redrawCanvas();
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "clear" }));
+  }
+}
+
+setBackground(null);
+
 canvas.addEventListener("mousedown", (e) => {
   drawing = true;
   const x = e.offsetX;
   const y = e.offsetY;
   ctx.beginPath();
   ctx.moveTo(x, y);
-  socket.send(JSON.stringify({ type: "start", x, y }));
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "start", x, y }));
+  }
 });
 
 canvas.addEventListener("mouseup", () => {
   drawing = false;
-  socket.send(JSON.stringify({ type: "end" }));
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "end" }));
+  }
 });
 
 canvas.addEventListener("mousemove", (e) => {
@@ -114,7 +90,9 @@ canvas.addEventListener("mousemove", (e) => {
   ctx.strokeStyle = "#000";
   ctx.lineTo(x, y);
   ctx.stroke();
-  socket.send(JSON.stringify({ type: "draw", x, y }));
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "draw", x, y }));
+  }
 });
 </script>
 </body>
