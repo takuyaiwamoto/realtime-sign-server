@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>受信側</title>
+</head>
+<body>
+<canvas id="viewCanvas" width="445" height="634" style="border:1px solid gray;"></canvas>
+
+<script>
+const canvas = document.getElementById("viewCanvas");
+const ctx = canvas.getContext("2d");
+
+let prevX = null;
+let prevY = null;
+let isDrawing = false;
+
+const socket = new WebSocket("wss://realtime-sign-server.onrender.com");
+
+socket.onopen = () => {
+  console.log("✅ WebSocket接続完了");
+};
+
+socket.onmessage = async (event) => {
+  try {
+    let json;
+    if (typeof event.data === "string") {
+      json = JSON.parse(event.data);
+    } else if (event.data instanceof Blob) {
+      const text = await event.data.text();
+      json = JSON.parse(text);
+    }
+
+    const type = json.type;
+    const x = json.x;
+    const y = json.y;
+
+    if (type === "start") {
+      isDrawing = true;
+      prevX = x;
+      prevY = y;
+    } else if (type === "draw" && isDrawing) {
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#000";
+      ctx.beginPath();
+      ctx.moveTo(prevX, prevY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      prevX = x;
+      prevY = y;
+    } else if (type === "end") {
+      isDrawing = false;
+      prevX = null;
+      prevY = null;
+    } else if (type === "clear") {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      prevX = null;
+      prevY = null;
+      isDrawing = false;
+    }
+
+  } catch (e) {
+    console.error("受信エラー:", e);
+  }
+};
+</script>
+</body>
+</html>

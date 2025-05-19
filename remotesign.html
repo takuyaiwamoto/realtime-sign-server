@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>送信側</title>
+</head>
+<body>
+<canvas id="drawCanvas" width="445" height="634" style="border:1px solid black;"></canvas>
+<br>
+<button id="clearBtn">🧹 Clear</button>
+
+<script>
+const canvas = document.getElementById("drawCanvas");
+const ctx = canvas.getContext("2d");
+let drawing = false;
+let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
+
+// Clearボタンの動作
+document.getElementById("clearBtn").addEventListener("click", () => {
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // 自分を消す
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "clear" })); // 相手にも送る
+  }
+});
+
+canvas.addEventListener("mousedown", (e) => {
+  drawing = true;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "start", x, y }));
+  }
+});
+
+canvas.addEventListener("mouseup", () => {
+  drawing = false;
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "end" }));
+  }
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (!drawing) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#000";
+  ctx.lineTo(x, y);
+  ctx.stroke();
+
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "draw", x, y }));
+  }
+});
+</script>
+</body>
+</html>
