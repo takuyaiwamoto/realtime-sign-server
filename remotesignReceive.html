@@ -2,66 +2,99 @@
 <html>
 <head>
   <title>受信側</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #eee;
+    }
+    #container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    canvas {
+      border: 1px solid black;
+      background-color: white;
+      display: block;
+    }
+  </style>
 </head>
 <body>
-<canvas id="viewCanvas" width="445" height="634" style="border:1px solid gray;"></canvas>
+
+<div id="container">
+  <canvas id="drawCanvas" width="842" height="595"></canvas>
+</div>
 
 <script>
-const canvas = document.getElementById("viewCanvas");
+const canvas = document.getElementById("drawCanvas");
 const ctx = canvas.getContext("2d");
+let backgroundImage = null;
 
-let prevX = null;
-let prevY = null;
-let isDrawing = false;
+let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
+socket.onopen = () => console.log("✅ WebSocket接続完了（受信側）");
+socket.onerror = e => console.error("❌ WebSocketエラー", e);
+socket.onclose = () => console.warn("⚠️ WebSocket切断");
 
-const socket = new WebSocket("wss://realtime-sign-server.onrender.com");
+function redrawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (backgroundImage) {
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+  }
+}
 
-socket.onopen = () => {
-  console.log("✅ WebSocket接続完了");
-};
-
-socket.onmessage = async (event) => {
-  try {
-    let json;
-    if (typeof event.data === "string") {
-      json = JSON.parse(event.data);
-    } else if (event.data instanceof Blob) {
-      const text = await event.data.text();
-      json = JSON.parse(text);
+socket.onmessage = (event) => {
+  if (event.data instanceof Blob) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        handleMessage(data);
+      } catch (e) {
+        console.error("JSON parse error:", e);
+      }
+    };
+    reader.readAsText(event.data);
+  } else {
+    try {
+      const data = JSON.parse(event.data);
+      handleMessage(data);
+    } catch (e) {
+      console.error("JSON parse error:", e);
     }
-
-    const type = json.type;
-    const x = json.x;
-    const y = json.y;
-
-    if (type === "start") {
-      isDrawing = true;
-      prevX = x;
-      prevY = y;
-    } else if (type === "draw" && isDrawing) {
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "#000";
-      ctx.beginPath();
-      ctx.moveTo(prevX, prevY);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-      prevX = x;
-      prevY = y;
-    } else if (type === "end") {
-      isDrawing = false;
-      prevX = null;
-      prevY = null;
-    } else if (type === "clear") {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      prevX = null;
-      prevY = null;
-      isDrawing = false;
-    }
-
-  } catch (e) {
-    console.error("受信エラー:", e);
   }
 };
+
+function handleMessage(data) {
+  if (data.type === "print") {
+    window.print();
+  } else if (data.type === "background") {
+    if (data.src === "white") {
+      backgroundImage = null;
+      redrawCanvas();
+    } else {
+      const img = new Image();
+      img.src = data.src;
+      img.onload = () => {
+        backgroundImage = img;
+        redrawCanvas();
+      };
+    }
+  } else if (data.type === "clear") {
+    redrawCanvas();
+  } else if (data.type === "start") {
+    ctx.beginPath();
+    ctx.moveTo(data.x, data.y);
+  } else if (data.type === "draw") {
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#000";
+    ctx.lineTo(data.x, data.y);
+    ctx.stroke();
+  }
+}
 </script>
+
 </body>
 </html>
