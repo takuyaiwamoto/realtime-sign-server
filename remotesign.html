@@ -2,31 +2,71 @@
 <html>
 <head>
   <title>送信側</title>
+  <style>
+    canvas {
+      border: 1px solid black;
+      display: block;
+      margin-bottom: 10px;
+    }
+    button {
+      margin-right: 5px;
+    }
+  </style>
 </head>
 <body>
-<canvas id="drawCanvas" width="445" height="634" style="border:1px solid black;"></canvas>
-<br>
-<button id="clearBtn">🧹 Clear</button>
+
+<canvas id="drawCanvas" width="842" height="595"></canvas>
+<button onclick="setBackground('./back1.png')">背景1</button>
+<button onclick="setBackground('./back2.png')">背景2</button>
+<button onclick="setBackground(null)">白</button>
+<button onclick="clearCanvas()">Clear</button>
 
 <script>
 const canvas = document.getElementById("drawCanvas");
 const ctx = canvas.getContext("2d");
 let drawing = false;
 let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
+let backgroundImage = null;
 
-// Clearボタンの動作
-document.getElementById("clearBtn").addEventListener("click", () => {
-  ctx.clearRect(0, 0, canvas.width, canvas.height); // 自分を消す
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: "clear" })); // 相手にも送る
+// 背景設定
+function setBackground(src) {
+  if (src === null) {
+    backgroundImage = null;
+    redrawCanvas();
+  } else {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => {
+      backgroundImage = img;
+      redrawCanvas();
+    };
   }
-});
+}
 
+// 背景＋線の再描画（初期化時や背景変更時）
+function redrawCanvas() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (backgroundImage) {
+    ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+  }
+}
+
+// Clearボタン
+function clearCanvas() {
+  redrawCanvas();
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "clear" }));
+  }
+}
+
+// 初期化：白背景
+setBackground(null);
+
+// 描画処理
 canvas.addEventListener("mousedown", (e) => {
   drawing = true;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
+  const x = e.offsetX;
+  const y = e.offsetY;
   ctx.beginPath();
   ctx.moveTo(x, y);
   if (socket.readyState === WebSocket.OPEN) {
@@ -43,15 +83,12 @@ canvas.addEventListener("mouseup", () => {
 
 canvas.addEventListener("mousemove", (e) => {
   if (!drawing) return;
-  const rect = canvas.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const y = e.clientY - rect.top;
-
+  const x = e.offsetX;
+  const y = e.offsetY;
   ctx.lineWidth = 4;
   ctx.strokeStyle = "#000";
   ctx.lineTo(x, y);
   ctx.stroke();
-
   if (socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: "draw", x, y }));
   }
