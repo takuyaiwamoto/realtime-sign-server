@@ -3,52 +3,40 @@
 <head>
   <title>送信側</title>
   <style>
-    body {
-      background-color: #eee;
-      text-align: center;
-      margin-top: 20px;
-    }
     canvas {
       border: 1px solid black;
       display: block;
-      margin: 0 auto 10px auto;
-      background-color: white;
+      margin-bottom: 10px;
     }
     button {
-      margin: 4px;
+      margin-right: 5px;
     }
   </style>
 </head>
 <body>
 
 <canvas id="drawCanvas" width="842" height="595"></canvas>
-<button onclick="setBackground('back1.png')">背景1</button>
-<button onclick="setBackground('back2.png')">背景2</button>
-<button onclick="setBackground('white')">白</button>
+<button onclick="setBackground('./back1.png')">背景1</button>
+<button onclick="setBackground('./back2.png')">背景2</button>
+<button onclick="setBackground(null)">白</button>
 <button onclick="clearCanvas()">Clear</button>
+<button onclick="sendPrintCommand()">送信</button>
 
 <script>
 const canvas = document.getElementById("drawCanvas");
 const ctx = canvas.getContext("2d");
 let drawing = false;
+let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 let backgroundImage = null;
 
-let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 socket.onopen = () => console.log("✅ WebSocket接続完了（送信側）");
-socket.onerror = e => console.error("❌ WebSocketエラー", e);
-socket.onclose = () => console.warn("⚠️ WebSocket切断");
 
-function send(data) {
-  if (socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(data));
-  }
-}
-
+// 背景を設定
 function setBackground(src) {
-  if (src === "white") {
+  if (src === null) {
     backgroundImage = null;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    send({ type: "background", src: "white" });
+    socket.send(JSON.stringify({ type: "background", src: "white" }));
   } else {
     const img = new Image();
     img.src = src;
@@ -56,31 +44,40 @@ function setBackground(src) {
       backgroundImage = img;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
-      send({ type: "background", src });
+      socket.send(JSON.stringify({ type: "background", src: src }));
     };
   }
 }
 
+// 送信ボタンで印刷コマンド送信
+function sendPrintCommand() {
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ type: "print" }));
+  }
+}
+
+// Clearキャンバス
 function clearCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (backgroundImage) {
     ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
   }
-  send({ type: "clear" });
+  socket.send(JSON.stringify({ type: "clear" }));
 }
 
+// 描画処理
 canvas.addEventListener("mousedown", (e) => {
   drawing = true;
   const x = e.offsetX;
   const y = e.offsetY;
   ctx.beginPath();
   ctx.moveTo(x, y);
-  send({ type: "start", x, y });
+  socket.send(JSON.stringify({ type: "start", x, y }));
 });
 
 canvas.addEventListener("mouseup", () => {
   drawing = false;
-  send({ type: "end" });
+  socket.send(JSON.stringify({ type: "end" }));
 });
 
 canvas.addEventListener("mousemove", (e) => {
@@ -91,9 +88,8 @@ canvas.addEventListener("mousemove", (e) => {
   ctx.strokeStyle = "#000";
   ctx.lineTo(x, y);
   ctx.stroke();
-  send({ type: "draw", x, y });
+  socket.send(JSON.stringify({ type: "draw", x, y }));
 });
 </script>
-
 </body>
 </html>
