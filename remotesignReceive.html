@@ -26,13 +26,14 @@
     }
   </style>
 
-  <!-- ライブラリは不要になりました -->
-
+  <!-- 必要なライブラリ -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
 
 <canvas id="drawCanvas" width="842" height="595"></canvas>
-<div class="version">3</div>
+<div class="version">2</div>
 
 <script>
 const canvas = document.getElementById("drawCanvas");
@@ -124,116 +125,51 @@ function handleMessage(data) {
   }
 }
 
-// 筆跡のみ印刷（ダイアログなしで直接印刷試行）
+// 筆跡のみPDF保存
 function saveCanvasAsPDF() {
-  console.log("直接印刷処理を開始");
+  console.log("PDF保存処理を開始");
   
-  // 現在のキャンバスの状態を保存
-  const originalCanvas = document.createElement('canvas');
-  originalCanvas.width = canvas.width;
-  originalCanvas.height = canvas.height;
-  const originalCtx = originalCanvas.getContext('2d');
-  originalCtx.drawImage(canvas, 0, 0);
-  
-  // メインキャンバスをクリアして筆跡だけを描画
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // 一時的に背景を非表示にして筆跡だけ描画
+  const tmpCanvas = document.createElement('canvas');
+  tmpCanvas.width = canvas.width;
+  tmpCanvas.height = canvas.height;
+  const tmpCtx = tmpCanvas.getContext('2d');
   
   // 筆跡のみを描画
   drawingData.forEach(cmd => {
     if (cmd.type === "start") {
-      ctx.beginPath();
-      ctx.moveTo(cmd.x, cmd.y);
+      tmpCtx.beginPath();
+      tmpCtx.moveTo(cmd.x, cmd.y);
     } else if (cmd.type === "draw") {
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "#000";
-      ctx.lineTo(cmd.x, cmd.y);
-      ctx.stroke();
+      tmpCtx.lineWidth = 4;
+      tmpCtx.strokeStyle = "#000";
+      tmpCtx.lineTo(cmd.x, cmd.y);
+      tmpCtx.stroke();
     }
   });
   
-  // キャンバスのデータURLを取得
-  const dataUrl = canvas.toDataURL('image/png');
-  
-  // 印刷処理
+  // PDFに変換して保存
   try {
-    // 印刷用の非表示iframe作成
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'fixed';
-    printFrame.style.width = '0';
-    printFrame.style.height = '0';
-    printFrame.style.border = '0';
-    printFrame.style.left = '-9999px';
-    document.body.appendChild(printFrame);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'pt',
+      format: [canvas.width, canvas.height]
+    });
     
-    // iframeにコンテンツを書き込み
-    const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
-    printDoc.open();
-    printDoc.write(`<!DOCTYPE html>
-      <html>
-        <head>
-          <title>手書き署名印刷 - HP ENVY Pro6420</title>
-          <style>
-            @page {
-              margin: 0;
-              size: auto;
-            }
-            body {
-              margin: 0;
-              padding: 0;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-            }
-            img {
-              width: 100%;
-              height: auto;
-            }
-            @media print {
-              body {
-                margin: 0;
-                padding: 0;
-              }
-            }
-          </style>
-        </head>
-        <body>
-          <img src="${dataUrl}" alt="手書き署名">
-        </body>
-      </html>`);
-    printDoc.close();
+    // 透明な背景でPDFに追加
+    const imgData = tmpCanvas.toDataURL('image/png');
+    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
     
-    // コンテンツ読み込み完了後に印刷
-    printFrame.onload = function() {
-      try {
-        // プリンタ設定プリセット（HP ENVY Pro6420向け）
-        // 注意: ブラウザごとの制限により、完全な静かな印刷は保証できませんが、可能な限りの設定を行います
-        setTimeout(function() {
-          try {
-            // 印刷実行
-            printFrame.contentWindow.focus();
-            printFrame.contentWindow.print();
-            
-            // 印刷後にiframeを削除（タイミングを遅らせる）
-            setTimeout(function() {
-              document.body.removeChild(printFrame);
-            }, 3000);
-          } catch (innerErr) {
-            console.error("印刷実行エラー:", innerErr);
-          }
-        }, 1000);
-      } catch (frameErr) {
-        console.error("印刷フレームエラー:", frameErr);
-      }
-    };
+    // ファイル名に日時を追加
+    const now = new Date();
+    const fileName = `signature_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}${now.getSeconds().toString().padStart(2,'0')}.pdf`;
+    
+    console.log("PDFを保存:", fileName);
+    pdf.save(fileName);
   } catch (err) {
-    console.error("印刷エラー:", err);
+    console.error("PDF生成エラー:", err);
   }
-  
-  // メインキャンバスを元の状態に戻す
-  setTimeout(() => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(originalCanvas, 0, 0);
-  }, 500);
 }
 </script>
 
