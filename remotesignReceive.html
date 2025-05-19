@@ -17,8 +17,8 @@
     }
     canvas {
       border: 1px solid black;
-      display: block;
       background-color: white;
+      display: block;
     }
   </style>
 </head>
@@ -32,9 +32,12 @@
 const canvas = document.getElementById("drawCanvas");
 const ctx = canvas.getContext("2d");
 let backgroundImage = null;
-let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 
-// キャンバス再描画
+let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
+socket.onopen = () => console.log("✅ WebSocket接続完了（受信側）");
+socket.onerror = e => console.error("❌ WebSocketエラー", e);
+socket.onclose = () => console.warn("⚠️ WebSocket切断");
+
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (backgroundImage) {
@@ -42,7 +45,6 @@ function redrawCanvas() {
   }
 }
 
-// WebSocketメッセージ受信処理（Blob対応済み）
 socket.onmessage = (event) => {
   if (event.data instanceof Blob) {
     const reader = new FileReader();
@@ -65,7 +67,6 @@ socket.onmessage = (event) => {
   }
 };
 
-// 各種メッセージの処理ロジック
 function handleMessage(data) {
   if (data.type === "background") {
     if (data.src === "white") {
