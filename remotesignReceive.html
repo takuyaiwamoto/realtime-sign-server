@@ -34,6 +34,7 @@ const ctx = canvas.getContext("2d");
 let backgroundImage = null;
 let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 
+// キャンバス再描画
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (backgroundImage) {
@@ -41,52 +42,56 @@ function redrawCanvas() {
   }
 }
 
+// WebSocketメッセージ受信処理（Blob対応済み）
 socket.onmessage = (event) => {
-  const reader = new FileReader();
-  reader.onload = () => {
-    const text = reader.result;
-    const data = JSON.parse(text);
-
-    // 以下、既存のtypeごとの処理に続く
-    if (data.type === "background") {
-      if (data.src === "white") {
-        backgroundImage = null;
-        redrawCanvas();
-      } else {
-        const img = new Image();
-        img.src = data.src;
-        img.onload = () => {
-          backgroundImage = img;
-          redrawCanvas();
-        };
-      }
-      return;
-    }
-
-    if (data.type === "clear") {
-      redrawCanvas();
-      return;
-    }
-
-    if (data.type === "start") {
-      ctx.beginPath();
-      ctx.moveTo(data.x, data.y);
-    }
-
-    if (data.type === "draw") {
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "#000";
-      ctx.lineTo(data.x, data.y);
-      ctx.stroke();
-    }
-  };
-
-  // Blobのときはここで読み込む
   if (event.data instanceof Blob) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        handleMessage(data);
+      } catch (e) {
+        console.error("JSON parse error:", e);
+      }
+    };
     reader.readAsText(event.data);
   } else {
-    // 念のため通常の文字列対応（Blobでなかった場合）
-    const data = JSON.parse(event.data);
-    // ここに上と同じロジックを書くことも可能（必要あれば分離可）
+    try {
+      const data = JSON.parse(event.data);
+      handleMessage(data);
+    } catch (e) {
+      console.error("JSON parse error:", e);
+    }
   }
 };
+
+// 各種メッセージの処理ロジック
+function handleMessage(data) {
+  if (data.type === "background") {
+    if (data.src === "white") {
+      backgroundImage = null;
+      redrawCanvas();
+    } else {
+      const img = new Image();
+      img.src = data.src;
+      img.onload = () => {
+        backgroundImage = img;
+        redrawCanvas();
+      };
+    }
+  } else if (data.type === "clear") {
+    redrawCanvas();
+  } else if (data.type === "start") {
+    ctx.beginPath();
+    ctx.moveTo(data.x, data.y);
+  } else if (data.type === "draw") {
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#000";
+    ctx.lineTo(data.x, data.y);
+    ctx.stroke();
+  }
+}
+</script>
+
+</body>
+</html>
