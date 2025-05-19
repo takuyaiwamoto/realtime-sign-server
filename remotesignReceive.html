@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html>
 <head>
@@ -27,9 +26,8 @@
     }
   </style>
 
-  <!-- 必要なライブラリ -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- ライブラリは不要になりました -->
+
 </head>
 <body>
 
@@ -126,51 +124,97 @@ function handleMessage(data) {
   }
 }
 
-// 筆跡のみPDF保存
+// 筆跡のみ印刷
 function saveCanvasAsPDF() {
-  console.log("PDF保存処理を開始");
+  console.log("印刷処理を開始");
   
-  // 一時的に背景を非表示にして筆跡だけ描画
-  const tmpCanvas = document.createElement('canvas');
-  tmpCanvas.width = canvas.width;
-  tmpCanvas.height = canvas.height;
-  const tmpCtx = tmpCanvas.getContext('2d');
+  // 現在のキャンバスの状態を保存
+  const originalCanvas = document.createElement('canvas');
+  originalCanvas.width = canvas.width;
+  originalCanvas.height = canvas.height;
+  const originalCtx = originalCanvas.getContext('2d');
+  originalCtx.drawImage(canvas, 0, 0);
+  
+  // メインキャンバスをクリアして筆跡だけを描画
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   
   // 筆跡のみを描画
   drawingData.forEach(cmd => {
     if (cmd.type === "start") {
-      tmpCtx.beginPath();
-      tmpCtx.moveTo(cmd.x, cmd.y);
+      ctx.beginPath();
+      ctx.moveTo(cmd.x, cmd.y);
     } else if (cmd.type === "draw") {
-      tmpCtx.lineWidth = 4;
-      tmpCtx.strokeStyle = "#000";
-      tmpCtx.lineTo(cmd.x, cmd.y);
-      tmpCtx.stroke();
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = "#000";
+      ctx.lineTo(cmd.x, cmd.y);
+      ctx.stroke();
     }
   });
   
-  // PDFに変換して保存
+  // 印刷処理
   try {
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'pt',
-      format: [canvas.width, canvas.height]
-    });
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('ポップアップブロックを無効にしてください');
+      return;
+    }
     
-    // 透明な背景でPDFに追加
-    const imgData = tmpCanvas.toDataURL('image/png');
-    pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+    // キャンバスデータをURLに変換
+    const dataUrl = canvas.toDataURL('image/png');
     
-    // ファイル名に日時を追加
-    const now = new Date();
-    const fileName = `signature_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}${now.getSeconds().toString().padStart(2,'0')}.pdf`;
-    
-    console.log("PDFを保存:", fileName);
-    pdf.save(fileName);
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>手書き署名印刷</title>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+              height: 100vh;
+            }
+            img {
+              max-width: 100%;
+              max-height: 100%;
+            }
+            @media print {
+              body {
+                margin: 0;
+                padding: 0;
+              }
+              img {
+                width: 100%;
+                height: auto;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <img src="${dataUrl}" alt="手書き署名">
+          <script>
+            // 自動印刷
+            window.onload = function() {
+              setTimeout(() => {
+                window.print();
+                setTimeout(() => window.close(), 500);
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   } catch (err) {
-    console.error("PDF生成エラー:", err);
+    console.error("印刷エラー:", err);
   }
+  
+  // メインキャンバスを元の状態に戻す
+  setTimeout(() => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(originalCanvas, 0, 0);
+  }, 500);
 }
 </script>
 
