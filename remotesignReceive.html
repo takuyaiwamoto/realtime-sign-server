@@ -32,7 +32,7 @@
 <body>
 
 <canvas id="drawCanvas" width="842" height="595"></canvas>
-<div class="version">2</div>
+<div class="version">3</div>
 
 <script>
 const canvas = document.getElementById("drawCanvas");
@@ -124,9 +124,9 @@ function handleMessage(data) {
   }
 }
 
-// 筆跡のみ印刷
+// 筆跡のみ印刷（ダイアログなしで直接印刷試行）
 function saveCanvasAsPDF() {
-  console.log("印刷処理を開始");
+  console.log("直接印刷処理を開始");
   
   // 現在のキャンバスの状態を保存
   const originalCanvas = document.createElement('canvas');
@@ -156,40 +156,42 @@ function saveCanvasAsPDF() {
   
   // 印刷処理
   try {
-    // シンプルな印刷方法に変更
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      alert('ポップアップブロックを無効にしてください');
-      return;
-    }
+    // 印刷用の非表示iframe作成
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'fixed';
+    printFrame.style.width = '0';
+    printFrame.style.height = '0';
+    printFrame.style.border = '0';
+    printFrame.style.left = '-9999px';
+    document.body.appendChild(printFrame);
     
-    const printDoc = printWindow.document;
+    // iframeにコンテンツを書き込み
+    const printDoc = printFrame.contentDocument || printFrame.contentWindow.document;
     printDoc.open();
     printDoc.write(`<!DOCTYPE html>
       <html>
         <head>
-          <title>手書き署名印刷</title>
+          <title>手書き署名印刷 - HP ENVY Pro6420</title>
           <style>
+            @page {
+              margin: 0;
+              size: auto;
+            }
             body {
               margin: 0;
               padding: 0;
               display: flex;
               justify-content: center;
               align-items: center;
-              height: 100vh;
             }
             img {
-              max-width: 100%;
-              max-height: 100%;
+              width: 100%;
+              height: auto;
             }
             @media print {
               body {
                 margin: 0;
                 padding: 0;
-              }
-              img {
-                width: 100%;
-                height: auto;
               }
             }
           </style>
@@ -200,19 +202,28 @@ function saveCanvasAsPDF() {
       </html>`);
     printDoc.close();
     
-    // 印刷を実行
-    printWindow.onload = function() {
-      // 少し待ってから印刷
-      setTimeout(function() {
-        printWindow.print();
-        // 印刷ダイアログが閉じられた後にウィンドウを閉じる
-        // ブラウザによっては動作が異なる可能性があります
-        printWindow.onfocus = function() {
-          setTimeout(function() {
-            printWindow.close();
-          }, 1000);
-        };
-      }, 500);
+    // コンテンツ読み込み完了後に印刷
+    printFrame.onload = function() {
+      try {
+        // プリンタ設定プリセット（HP ENVY Pro6420向け）
+        // 注意: ブラウザごとの制限により、完全な静かな印刷は保証できませんが、可能な限りの設定を行います
+        setTimeout(function() {
+          try {
+            // 印刷実行
+            printFrame.contentWindow.focus();
+            printFrame.contentWindow.print();
+            
+            // 印刷後にiframeを削除（タイミングを遅らせる）
+            setTimeout(function() {
+              document.body.removeChild(printFrame);
+            }, 3000);
+          } catch (innerErr) {
+            console.error("印刷実行エラー:", innerErr);
+          }
+        }, 1000);
+      } catch (frameErr) {
+        console.error("印刷フレームエラー:", frameErr);
+      }
     };
   } catch (err) {
     console.error("印刷エラー:", err);
