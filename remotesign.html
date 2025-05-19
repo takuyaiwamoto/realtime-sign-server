@@ -11,6 +11,11 @@
     button {
       margin-right: 5px;
     }
+    #countdown {
+      font-size: 24px;
+      color: red;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
@@ -21,6 +26,9 @@
 <button onclick="setBackground(null)">白</button>
 <button onclick="clearCanvas()">Clear</button>
 <button onclick="sendPrintCommand()">送信</button>
+
+<!-- ✅ カウントダウン表示領域 -->
+<div id="countdown"></div>
 
 <script>
 const canvas = document.getElementById("drawCanvas");
@@ -53,7 +61,25 @@ function setBackground(src) {
 function sendPrintCommand() {
   if (socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: "print" }));
+    startCountdown();
   }
+}
+
+// ✅ カウントダウン表示
+function startCountdown() {
+  const countdownEl = document.getElementById("countdown");
+  let seconds = 7;
+  countdownEl.textContent = `お渡しまで：${seconds}秒`;
+
+  const timer = setInterval(() => {
+    seconds--;
+    if (seconds >= 0) {
+      countdownEl.textContent = `お渡しまで：${seconds}秒`;
+    } else {
+      clearInterval(timer);
+      countdownEl.textContent = "";
+    }
+  }, 1000);
 }
 
 // Clearキャンバス
