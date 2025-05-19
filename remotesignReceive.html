@@ -59,6 +59,46 @@ let backgroundImage = null;
 let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 socket.onopen = () => console.log("✅ WebSocket接続完了（受信側）");
 
+// 背景を描かずに筆跡だけ印刷する処理
+function printWithoutBackground() {
+  const imageOnly = document.createElement("canvas");
+  imageOnly.width = canvas.width;
+  imageOnly.height = canvas.height;
+  const imageCtx = imageOnly.getContext("2d");
+
+  // 現在の canvas をすべてコピー（背景込み）
+  imageCtx.drawImage(canvas, 0, 0);
+
+  // 背景を再描画しない = 背景の描画部分を透明にする
+  if (backgroundImage) {
+    const temp = imageCtx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = temp.data;
+    const bgCanvas = document.createElement("canvas");
+    bgCanvas.width = canvas.width;
+    bgCanvas.height = canvas.height;
+    const bgCtx = bgCanvas.getContext("2d");
+    bgCtx.drawImage(backgroundImage, 0, 0);
+    const bgData = bgCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+    for (let i = 0; i < pixels.length; i += 4) {
+      if (pixels[i] === bgData[i] &&
+          pixels[i + 1] === bgData[i + 1] &&
+          pixels[i + 2] === bgData[i + 2]) {
+        pixels[i + 3] = 0; // alphaを0にする
+      }
+    }
+    imageCtx.putImageData(temp, 0, 0);
+  }
+
+  // 新しいウィンドウで印刷
+  const win = window.open("", "_blank");
+  win.document.write(`<html><head><title>印刷</title></head><body style="margin:0"><img src="${imageOnly.toDataURL("image/png")}" style="width:210mm; height:297mm;"></body></html>`);
+  win.document.close();
+  win.focus();
+  win.print();
+  win.close();
+}
+
 function redrawCanvas() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (backgroundImage) {
@@ -87,16 +127,7 @@ socket.onmessage = (event) => {
 
 function handleMessage(data) {
   if (data.type === "print") {
-    // 背景を一時的に消して印刷
-    const originalImage = backgroundImage;
-    backgroundImage = null;
-    redrawCanvas();
-
-    setTimeout(() => {
-      window.print();
-      backgroundImage = originalImage;
-      redrawCanvas();
-    }, 100); // 少し待ってから元に戻す
+    printWithoutBackground();
   } else if (data.type === "background") {
     if (data.src === "white") {
       backgroundImage = null;
@@ -122,5 +153,6 @@ function handleMessage(data) {
   }
 }
 </script>
+
 </body>
 </html>
