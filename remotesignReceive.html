@@ -151,18 +151,21 @@ function saveCanvasAsPDF() {
     }
   });
   
+  // キャンバスのデータURLを取得
+  const dataUrl = canvas.toDataURL('image/png');
+  
   // 印刷処理
   try {
+    // シンプルな印刷方法に変更
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('ポップアップブロックを無効にしてください');
       return;
     }
     
-    // キャンバスデータをURLに変換
-    const dataUrl = canvas.toDataURL('image/png');
-    
-    printWindow.document.write(`
+    const printDoc = printWindow.document;
+    printDoc.open();
+    printDoc.write(`<!DOCTYPE html>
       <html>
         <head>
           <title>手書き署名印刷</title>
@@ -193,19 +196,24 @@ function saveCanvasAsPDF() {
         </head>
         <body>
           <img src="${dataUrl}" alt="手書き署名">
-          <script>
-            // 自動印刷
-            window.onload = function() {
-              setTimeout(() => {
-                window.print();
-                setTimeout(() => window.close(), 500);
-              }, 500);
-            };
-          </script>
         </body>
-      </html>
-    `);
-    printWindow.document.close();
+      </html>`);
+    printDoc.close();
+    
+    // 印刷を実行
+    printWindow.onload = function() {
+      // 少し待ってから印刷
+      setTimeout(function() {
+        printWindow.print();
+        // 印刷ダイアログが閉じられた後にウィンドウを閉じる
+        // ブラウザによっては動作が異なる可能性があります
+        printWindow.onfocus = function() {
+          setTimeout(function() {
+            printWindow.close();
+          }, 1000);
+        };
+      }, 500);
+    };
   } catch (err) {
     console.error("印刷エラー:", err);
   }
