@@ -19,23 +19,19 @@
   </style>
 </head>
 <body>
-
 <canvas id="drawCanvas" width="842" height="595"></canvas>
 <button onclick="setBackground('./back1.png')">背景1</button>
 <button onclick="setBackground('./back2.png')">背景2</button>
 <button onclick="setBackground(null)">白</button>
 <button onclick="clearCanvas()">Clear</button>
 <button onclick="sendPrintCommand()">送信</button>
-
 <div id="countdown"></div>
-
 <script>
 const canvas = document.getElementById("drawCanvas");
 const ctx = canvas.getContext("2d");
 let drawing = false;
 let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 let backgroundImage = null;
-
 socket.onopen = () => console.log("✅ WebSocket接続完了（送信側）");
 
 function setBackground(src) {
@@ -64,9 +60,9 @@ function sendPrintCommand() {
 
 function startCountdown() {
   const countdownEl = document.getElementById("countdown");
-  let seconds = 7;
+  let seconds = 11; // 🔸 受信側の完了タイミング（11秒）に合わせて修正
   countdownEl.textContent = `お渡しまで：${seconds}秒`;
-
+  
   const timer = setInterval(() => {
     seconds--;
     if (seconds >= 0) {
@@ -74,13 +70,11 @@ function startCountdown() {
     } else {
       clearInterval(timer);
       countdownEl.textContent = "";
-
       // ✅ カウントダウン終了後、筆跡のみ削除（背景維持）
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       if (backgroundImage) {
         ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
       }
-
       // ✅ 背景の同期送信
       const bgSrc = backgroundImage ? backgroundImage.src : "white";
       socket.send(JSON.stringify({ type: "clear" }));
@@ -108,7 +102,7 @@ canvas.addEventListener("mousedown", (e) => {
 
 canvas.addEventListener("mouseup", () => {
   drawing = false;
-  socket.send(JSON.stringify({ type: "end" }));
+  // 🔸 不要な"end"メッセージを削除（受信側で処理していないため）
 });
 
 canvas.addEventListener("mousemove", (e) => {
