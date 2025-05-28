@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>送信側</title>
+  <title>送信側1.1</title>
   <style>
     canvas {
       border: 1px solid black;
@@ -109,6 +109,38 @@ canvas.addEventListener("mousemove", (e) => {
   if (!drawing) return;
   const x = e.offsetX;
   const y = e.offsetY;
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "#000";
+  ctx.lineTo(x, y);
+  ctx.stroke();
+  socket.send(JSON.stringify({ type: "draw", x, y }));
+});
+
+// 🔸 スマホ対応：タッチイベントを追加
+canvas.addEventListener("touchstart", (e) => {
+  e.preventDefault(); // スクロールを防止
+  drawing = true;
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  socket.send(JSON.stringify({ type: "start", x, y }));
+});
+
+canvas.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  drawing = false;
+});
+
+canvas.addEventListener("touchmove", (e) => {
+  e.preventDefault(); // スクロールを防止
+  if (!drawing) return;
+  const touch = e.touches[0];
+  const rect = canvas.getBoundingClientRect();
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
   ctx.lineWidth = 4;
   ctx.strokeStyle = "#000";
   ctx.lineTo(x, y);
