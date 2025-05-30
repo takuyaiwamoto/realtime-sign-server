@@ -34,16 +34,43 @@ let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 let backgroundImage = null;
 socket.onopen = () => console.log("✅ WebSocket接続完了（送信側）");
 
+// 🔸 キャンバスサイズ変更関数を追加
+function setCanvasToPortraitSize() {
+  // 縦長サイズ（A4縦）に変更
+  canvas.width = 595;  // A4縦の幅
+  canvas.height = 842; // A4縦の高さ
+  console.log(`書き手側キャンバスを縦長に変更: ${canvas.width} x ${canvas.height}`);
+}
+
+function resetCanvasToNormalSize() {
+  // 通常サイズ（A4横）に戻す
+  canvas.width = 842;  // 元のサイズ
+  canvas.height = 595; // 元のサイズ
+  console.log(`書き手側キャンバスを通常サイズに変更: ${canvas.width} x ${canvas.height}`);
+}
+
 function setBackground(src) {
   if (src === null) {
     backgroundImage = null;
+    
+    // 🔸 白背景の場合は通常サイズに戻す
+    resetCanvasToNormalSize();
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
     socket.send(JSON.stringify({ type: "background", src: "white" }));
   } else {
     const img = new Image();
     img.src = src;
     img.onload = () => {
       backgroundImage = img;
+      
+      // 🔸 back2の場合は縦長に変更
+      if (src.includes('back2')) {
+        setCanvasToPortraitSize();
+      } else {
+        resetCanvasToNormalSize();
+      }
+      
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
       socket.send(JSON.stringify({ type: "background", src: src }));
