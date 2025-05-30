@@ -39,6 +39,13 @@ function setCanvasToPortraitSize() {
   // 縦長サイズ（A4縦）に変更
   canvas.width = 595;  // A4縦の幅
   canvas.height = 842; // A4縦の高さ
+  
+  // 🔸 HTML要素のサイズも変更
+  canvas.setAttribute('width', '595');
+  canvas.setAttribute('height', '842');
+  canvas.style.width = '595px';
+  canvas.style.height = '842px';
+  
   console.log(`書き手側キャンバスを縦長に変更: ${canvas.width} x ${canvas.height}`);
 }
 
@@ -46,6 +53,13 @@ function resetCanvasToNormalSize() {
   // 通常サイズ（A4横）に戻す
   canvas.width = 842;  // 元のサイズ
   canvas.height = 595; // 元のサイズ
+  
+  // 🔸 HTML要素のサイズも変更
+  canvas.setAttribute('width', '842');
+  canvas.setAttribute('height', '595');
+  canvas.style.width = '842px';
+  canvas.style.height = '595px';
+  
   console.log(`書き手側キャンバスを通常サイズに変更: ${canvas.width} x ${canvas.height}`);
 }
 
