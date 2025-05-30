@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>送信側1.1</title>
+  <title>送信側</title>
   <style>
     canvas {
       border: 1px solid black;
@@ -19,12 +19,16 @@
   </style>
 </head>
 <body>
-<canvas id="drawCanvas" width="842" height="595"></canvas>
+<canvas id="drawCanvas" width="1050" height="743"></canvas>
 <button onclick="setBackground('./back1.png')">背景1</button>
 <button onclick="setBackground('./back2.png')">背景2</button>
 <button onclick="setBackground(null)">白</button>
 <button onclick="clearCanvas()">Clear</button>
 <button onclick="sendPrintCommand()">送信</button>
+<br>
+<!-- 🔸 用紙サイズ選択ボタンを追加 -->
+<button id="paperA4" onclick="setPaperSize('A4')" style="background-color: #4CAF50; color: white;">A4</button>
+<button id="paperL" onclick="setPaperSize('L')" style="background-color: #ddd;">ポストカード</button>
 <div id="countdown"></div>
 <script>
 const canvas = document.getElementById("drawCanvas");
@@ -32,6 +36,8 @@ const ctx = canvas.getContext("2d");
 let drawing = false;
 let socket = new WebSocket("wss://realtime-sign-server.onrender.com");
 let backgroundImage = null;
+let currentPaperSize = "A4"; // 🔸 デフォルトはA4
+
 socket.onopen = () => console.log("✅ WebSocket接続完了（送信側）");
 
 function setBackground(src) {
@@ -53,9 +59,44 @@ function setBackground(src) {
 
 function sendPrintCommand() {
   if (socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({ type: "print" }));
+    // 🔸 印刷コマンドに用紙サイズ情報を含める
+    socket.send(JSON.stringify({ 
+      type: "print", 
+      paperSize: currentPaperSize 
+    }));
     startCountdown();
   }
+}
+
+// 🔸 用紙サイズ設定関数
+function setPaperSize(size) {
+  currentPaperSize = size;
+  
+  // ボタンの見た目を更新
+  const a4Button = document.getElementById("paperA4");
+  const lButton = document.getElementById("paperL");
+  
+  if (size === "A4") {
+    a4Button.style.backgroundColor = "#4CAF50";
+    a4Button.style.color = "white";
+    lButton.style.backgroundColor = "#ddd";
+    lButton.style.color = "black";
+  } else {
+    lButton.style.backgroundColor = "#4CAF50";
+    lButton.style.color = "white";
+    a4Button.style.backgroundColor = "#ddd";
+    a4Button.style.color = "black";
+  }
+  
+  // 🔸 受信側に用紙サイズ変更を通知
+  if (socket.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify({ 
+      type: "paperSize", 
+      size: size 
+    }));
+  }
+  
+  console.log(`用紙サイズを${size}に変更しました`);
 }
 
 function startCountdown() {
